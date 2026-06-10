@@ -256,7 +256,6 @@ with tab3:
         st.dataframe(sm_data)
 
 # ------------------- TAB 4: Nginx Firewall -------------------
-with tab4:# ------------------- TAB 4: Nginx Firewall -------------------
 with tab4:
     st.header("🛡️ Nginx-Style Rate Limiting & Firewall")
     st.markdown("Token bucket rate limiting, IP blacklist/whitelist, and auto-blocking")
@@ -274,8 +273,7 @@ with tab4:
         for i in range(requests_count):
             res = fw.process_request(test_ip, path)
             key = res.value
-            
-            # تطابق القيم مع المفاتيح وزيادة العداد المناسب
+            # تطابق القيم مع المفاتيح
             if key == "ALLOWED":
                 results["✅ ALLOWED"] += 1
             elif key == "RATE_LIMITED":
@@ -284,7 +282,6 @@ with tab4:
                 results["⛔ BLOCKED"] += 1
             elif key == "WHITELISTED":
                 results["⭐ WHITELISTED"] += 1
-            
             time.sleep(0.05)
         
         col1, col2, col3, col4 = st.columns(4)
