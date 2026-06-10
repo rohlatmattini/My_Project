@@ -274,28 +274,34 @@ with tab4:
         requests_count = st.slider("Number of requests", 1, 50, 10, key="fw_count")
     
     if st.button("🔍 Test Rate Limiting", key="fw_test_btn"):
+        # قاموس لتجميع نتائج المحاكاة اللحظية بدقة
         results = {"✅ ALLOWED": 0, "🚫 RATE_LIMITED": 0, "⛔ BLOCKED": 0, "⭐ WHITELISTED": 0}
+        
         for i in range(requests_count):
             res = fw.process_request(test_ip, path)
-            key = res.value
-            if key == "ALLOWED":
+            
+            # استخراج اسم الحالة البرمجية سواء كانت Enum أو String لضمان المطابقة
+            res_str = res.name if hasattr(res, 'name') else str(res)
+            
+            if "ALLOWED" in res_str:
                 results["✅ ALLOWED"] += 1
-            elif key == "RATE_LIMITED":
+            elif "RATE_LIMITED" in res_str:
                 results["🚫 RATE_LIMITED"] += 1
-            elif key == "BLOCKED_IP":
+            elif "BLOCK" in res_str:  # يمسك حالات BLOCKED أو BLOCKED_IP التلقائية
                 results["⛔ BLOCKED"] += 1
-            elif key == "WHITELISTED":
+            elif "WHITELIST" in res_str:
                 results["⭐ WHITELISTED"] += 1
-            time.sleep(0.05)
+                
+            time.sleep(0.01)  # تأخير زمني بسيط جداً لمحاكاة التدفق اللحظي الطلبات
         
-        # ✅ الأرقام
+        # 📊 عرض الأرقام اللحظية الصحيحة في العدادات الكبيرة فوراً
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("✅ Allowed", results["✅ ALLOWED"])
         col2.metric("🚫 Rate Limited", results["🚫 RATE_LIMITED"])
         col3.metric("⛔ Blocked", results["⛔ BLOCKED"])
         col4.metric("⭐ Whitelisted", results["⭐ WHITELISTED"])
         
-        # ✅ الـ IP Status
+        # 📝 عرض تفاصيل حالة الـ IP الحالية في السيستم
         status = fw.get_ip_status(test_ip)
         st.info(f"""
         **IP Status:** {test_ip}
@@ -306,6 +312,9 @@ with tab4:
         - Window Requests: {status['window_requests']}
         - Total Requests: {status['total_requests']}
         """)
+        
+        # عمل إعادة تنشيط للواجهة للتأكد من تحديث الجداول السفلية بالتزامن مع العدادات
+        st.rerun()
     
     st.subheader("IP Management")
     col1, col2 = st.columns(2)
@@ -314,12 +323,14 @@ with tab4:
         if st.button("➕ Add Whitelist", key="wl_btn"):
             fw.add_to_whitelist(whitelist_ip)
             st.success(f"Added {whitelist_ip} to whitelist")
+            st.rerun()
     
     with col2:
         blacklist_ip = st.text_input("Add to Blacklist", "1.2.3.4", key="bl_ip")
         if st.button("⛔ Add Blacklist", key="bl_btn"):
             fw.add_to_blacklist(blacklist_ip)
             st.success(f"Added {blacklist_ip} to blacklist")
+            st.rerun()
     
     with st.expander("📊 Firewall Stats"):
         stats_data = []
