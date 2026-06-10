@@ -95,16 +95,21 @@ with tab1:
     with col1:
         num_records = st.slider("Number of records", 500, 10000, 2000, key="geo_num")
     with col2:
-        region_focus = st.selectbox("Focus region", ["All", "ME", "EU", "NA", "AP"], key="geo_region")
+        region_focus = st.selectbox("Focus region", ["All", "ME", "EU", "NA", "AP", "AF", "SA_"], key="geo_region")
     
     if st.button("🚀 Run GeoSharding Simulation", key="geo_btn"):
         with st.spinner("Routing records across regions..."):
             records = []
-            countries = list(COUNTRY_TO_REGION.keys())
+            
+            if region_focus != "All":
+                allowed_countries = [c for c, r in COUNTRY_TO_REGION.items() if r == region_focus]
+            else:
+                allowed_countries = list(COUNTRY_TO_REGION.keys())
+            
             for _ in range(num_records):
                 records.append(GeoRecord(
                     user_id=f"user_{random.randint(1,99999)}",
-                    country=random.choice(countries),
+                    country=random.choice(allowed_countries),
                     lat=0.0, lon=0.0,
                     data={}
                 ))
@@ -117,7 +122,7 @@ with tab1:
                 region = geo_mgr.shards[shard_id].region
                 region_counts[region] = region_counts.get(region, 0) + len(recs)
             
-            st.success(f"✅ Routed {num_records:,} records")
+            st.success(f"✅ Routed {num_records:,} records from region: {region_focus}")
             
             # Chart
             chart_data = pd.DataFrame({
@@ -145,7 +150,6 @@ with tab1:
                         "Hot Spot": "🔥" if shard.hot_spot else "✅"
                     })
                 st.dataframe(shard_data)
-
 # ------------------- TAB 2: Ingress Controller -------------------
 with tab2:
     st.header("🚪 Ingress Controller / API Gateway")
