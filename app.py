@@ -262,23 +262,33 @@ with tab4:
     
     col1, col2, col3 = st.columns(3)
     with col1:
-        test_ip = st.text_input("Test IP", "192.168.1.100")
+        test_ip = st.text_input("Test IP", "192.168.1.100", key="fw_ip")
     with col2:
         path = st.text_input("Path", "/api/data", key="fw_path")
     with col3:
         requests_count = st.slider("Number of requests", 1, 50, 10, key="fw_count")
     
     if st.button("🔍 Test Rate Limiting", key="fw_test_btn"):
-        results = {"✅ ALLOWED": 0, "🚫 RATE_LIMITED": 0, "⛔ BLOCKED": 0}
+        results = {"✅ ALLOWED": 0, "🚫 RATE_LIMITED": 0, "⛔ BLOCKED": 0, "⭐ WHITELISTED": 0}
         for i in range(requests_count):
             res = fw.process_request(test_ip, path)
-            results[res.value] += 1
+            key = res.value
+            # تطابق القيم مع المفاتيح
+            if key == "ALLOWED":
+                results["✅ ALLOWED"] += 1
+            elif key == "RATE_LIMITED":
+                results["🚫 RATE_LIMITED"] += 1
+            elif key == "BLOCKED_IP":
+                results["⛔ BLOCKED"] += 1
+            elif key == "WHITELISTED":
+                results["⭐ WHITELISTED"] += 1
             time.sleep(0.05)
         
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Allowed", results["✅ ALLOWED"])
-        col2.metric("Rate Limited", results["🚫 RATE_LIMITED"])
-        col3.metric("Blocked", results["⛔ BLOCKED"])
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("✅ Allowed", results["✅ ALLOWED"])
+        col2.metric("🚫 Rate Limited", results["🚫 RATE_LIMITED"])
+        col3.metric("⛔ Blocked", results["⛔ BLOCKED"])
+        col4.metric("⭐ Whitelisted", results["⭐ WHITELISTED"])
         
         # Show status
         status = fw.get_ip_status(test_ip)
@@ -295,14 +305,14 @@ with tab4:
     st.subheader("IP Management")
     col1, col2 = st.columns(2)
     with col1:
-        whitelist_ip = st.text_input("Add to Whitelist", "10.0.0.1")
-        if st.button("➕ Add Whitelist"):
+        whitelist_ip = st.text_input("Add to Whitelist", "10.0.0.1", key="wl_ip")
+        if st.button("➕ Add Whitelist", key="wl_btn"):
             fw.add_to_whitelist(whitelist_ip)
             st.success(f"Added {whitelist_ip} to whitelist")
     
     with col2:
-        blacklist_ip = st.text_input("Add to Blacklist", "1.2.3.4")
-        if st.button("⛔ Add Blacklist"):
+        blacklist_ip = st.text_input("Add to Blacklist", "1.2.3.4", key="bl_ip")
+        if st.button("⛔ Add Blacklist", key="bl_btn"):
             fw.add_to_blacklist(blacklist_ip)
             st.success(f"Added {blacklist_ip} to blacklist")
     
@@ -322,6 +332,3 @@ with tab4:
         st.write(f"Burst Size: {fw.config.burst_size}")
         st.write(f"Block Threshold: {fw.config.block_threshold}")
         st.write(f"Block Duration: {fw.config.block_duration}s")
-
-st.markdown("---")
-st.caption("✅ Distributed Systems Project - All Components Deployed")
