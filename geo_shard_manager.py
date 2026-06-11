@@ -12,9 +12,6 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s"
 )
 
-# ============================================================
-# CONSTANTS & MAPPINGS
-# ============================================================
 COUNTRY_TO_REGION: Dict[str, str] = {
     # Middle East
     "SA": "ME", "AE": "ME", "EG": "ME", "JO": "ME",
@@ -69,12 +66,9 @@ class ShardInfo:
     hot_spot:    bool = False
 
     def load_factor(self) -> float:
-        # فرضنا أن سعة الشارد 10,000 سجل للتبسيط
         return min(self.record_count / 10000, 1.0)
 
-# ============================================================
-# CONSISTENT HASHING
-# ============================================================
+
 class ConsistentHashRing:
     def __init__(self, virtual_nodes: int = 150):
         self.virtual_nodes = virtual_nodes
@@ -123,9 +117,7 @@ class ConsistentHashRing:
     def _hash(key: str) -> int:
         return int(hashlib.md5(key.encode()).hexdigest(), 16)
 
-# ============================================================
-# GEO SHARD MANAGER
-# ============================================================
+
 class GeoShardManager:
     HOT_SPOT_THRESHOLD = 0.8   
 
@@ -201,7 +193,6 @@ class GeoShardManager:
         self.shards[new_id] = new_shard
         self.rings[shard.region].add_server(new_id)
 
-        # تقسيم البيانات نظرياً
         shard.record_count //= 2
         new_shard.record_count = shard.record_count
         shard.hot_spot = False
@@ -215,15 +206,9 @@ class GeoShardManager:
             splits.append(self.split_hot_shard(shard.shard_id))
         return splits
 
-    # --------------------------------------------------------
-    # FIXED BALANCE SCORE (Logical Accuracy)
-    # --------------------------------------------------------
+
     def balance_score(self) -> float:
-        """
-        Calculates how well the data is distributed across ALL available shards.
-        Uses Normalized Coefficient of Variation (CV).
-        """
-        # نأخذ كل الشاردات في الحسبان (حتى الفاضية)
+     
         counts = [float(s.record_count) for s in self.shards.values()]
         n = len(counts)
         
@@ -232,18 +217,14 @@ class GeoShardManager:
         total = sum(counts)
         if total == 0: return 1.0
         
-        # المتوسط الحسابي
         mean = total / n
         
-        # الانحراف المعياري (Standard Deviation)
         variance = sum((c - mean) ** 2 for c in counts) / n
         std = math.sqrt(variance)
         
-        # معامل الاختلاف (CV)
         cv = std / mean
         
-        # تحويل الـ CV إلى نسبة مئوية (0% توزيع سيء جداً، 100% توزيع مثالي)
-        # أقصى قيمة ممكنة للـ CV هي sqrt(n - 1) عندما تكون كل البيانات في مكان واحد
+     
         max_cv = math.sqrt(n - 1)
         
         score = 1.0 - (cv / max_cv)
