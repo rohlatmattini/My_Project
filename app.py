@@ -77,7 +77,7 @@ def get_firewall():
 fw = get_firewall()
 
 # ============================================================
-# TABS: تشغيل كل تاسك على حدة
+# TABS
 # ============================================================
 tab1, tab2, tab3, tab4 = st.tabs([
     "🌍 GeoSharding", 
@@ -86,7 +86,7 @@ tab1, tab2, tab3, tab4 = st.tabs([
     "🛡️ Nginx Firewall"
 ])
 
-# ------------------- TAB 1: GeoSharding -------------------
+# ------------------- TAB 1: GeoSharding (معدل) -------------------
 with tab1:
     st.header("🌍 Geographic Sharding")
     st.markdown("Multi-region database with consistent hashing and hot-spot detection")
@@ -97,12 +97,17 @@ with tab1:
     with col2:
         region_focus = st.selectbox("Focus region", ["All", "ME", "EU", "NA", "AP", "AF", "SA_"], key="geo_region")
     
-    if st.button("🔄 Reset Manager", key="geo_reset"):
+    # زر إعادة تعيين المدير (Reset Manager)
+    if st.button("🔄 Reset Manager", key="reset_geo_btn"):
+        geo_mgr = GeoShardManager()
         st.cache_resource.clear()
         st.rerun()
-
+    
     if st.button("🚀 Run GeoSharding Simulation", key="geo_btn"):
         with st.spinner("Routing records across regions..."):
+            # إعادة تعيين الشاردات قبل المحاكاة الجديدة
+            geo_mgr = GeoShardManager()
+            
             records = []
             
             if region_focus != "All":
@@ -120,7 +125,13 @@ with tab1:
             
             distribution = geo_mgr.route_many(records)
             
-            # Results
+            # حساب Balance Score الصحيح
+            actual_balance_score = geo_mgr.balance_score()
+            
+            # حساب Hot Spots
+            hot_spots_count = sum(1 for s in geo_mgr.shards.values() if s.hot_spot)
+            
+            # Region counts للتوزيع
             region_counts = {}
             for shard_id, recs in distribution.items():
                 region = geo_mgr.shards[shard_id].region
@@ -129,18 +140,20 @@ with tab1:
             st.success(f"✅ Routed {num_records:,} records from region: {region_focus}")
             
             # Chart
-            chart_data = pd.DataFrame({
-                "Region": list(region_counts.keys()),
-                "Records": list(region_counts.values())
-            })
-            st.bar_chart(chart_data.set_index("Region"))
+            if region_counts:
+                chart_data = pd.DataFrame({
+                    "Region": list(region_counts.keys()),
+                    "Records": list(region_counts.values())
+                })
+                st.bar_chart(chart_data.set_index("Region"))
+            else:
+                st.info("No data to display")
             
-            # Metrics
+            # Metrics - باستخدام القيم الصحيحة
             col1, col2, col3 = st.columns(3)
             col1.metric("Total Shards", len(geo_mgr.shards))
-            col2.metric("Balance Score", f"{geo_mgr.balance_score():.2%}")
-            hot_count = sum(1 for s in geo_mgr.shards.values() if s.hot_spot)
-            col3.metric("Hot Spots", hot_count)
+            col2.metric("Balance Score", f"{actual_balance_score:.2%}")
+            col3.metric("Hot Spots", hot_spots_count)
             
             # Shard table
             with st.expander("📋 Shard Details"):
@@ -154,6 +167,14 @@ with tab1:
                         "Hot Spot": "🔥" if shard.hot_spot else "✅"
                     })
                 st.dataframe(shard_data)
+            
+            # Debug info (للتأكد من صحة الحسابات)
+            with st.expander("🔧 Debug Info"):
+                st.write(f"Raw counts: {[s.record_count for s in geo_mgr.shards.values()]}")
+                st.write(f"Sum: {sum(s.record_count for s in geo_mgr.shards.values())}")
+                st.write(f"Mean: {sum(s.record_count for s in geo_mgr.shards.values()) / len(geo_mgr.shards):.2f}")
+                st.write(f"Hot spots list: {[s.shard_id for s in geo_mgr.shards.values() if s.hot_spot]}")
+
 # ------------------- TAB 2: Ingress Controller -------------------
 with tab2:
     st.header("🚪 Ingress Controller / API Gateway")
@@ -165,19 +186,21 @@ with tab2:
     with col2:
         client_ip = st.text_input("Client IP", "192.168.1.100")
     
-    if st.button("Send Request", key="ingress_btn"):
+    if st.button("📤 Send Request", key="ingress_btn"):
         res = ingress_gw.handle_request(path, "GET", client_ip)
         
-        st.info(f"**Response:** HTTP {res['status']}")
+        if res.get('status') == 200:
+            st.success(f"**Response:** HTTP {res['status']}")
+        else:
+            st.error(f"**Response:** HTTP {res['status']}")
+        
         st.write(f"**Body:** {res.get('body', 'N/A')}")
         if "instance" in res:
             st.write(f"**Instance:** {res['instance']}")
         st.write(f"**Latency:** {res.get('latency_ms', 0)} ms")
     
     st.subheader("📊 Metrics")
-    if st.button("Refresh Metrics", key="ingress_metrics_btn"):
-        ingress_gw.print_metrics()
-        st.write("Check console for detailed metrics (or view below):")
+    if st.button("🔄 Refresh Metrics", key="ingress_metrics_btn"):
         metrics_data = []
         for svc, m in ingress_gw.metrics.items():
             metrics_data.append({
@@ -220,16 +243,14 @@ with tab3:
     if leader_id:
         st.success(f"👑 Current Leader: **{leader_id}**")
     else:
-        st.warning("No leader elected yet. Run election.")
+        st.warning("⚠️ No leader elected yet. Run election.")
     
     col1, col2 = st.columns(2)
     with col1:
         if st.button("🗳️ Start Election", key="raft_election_btn"):
             with st.spinner("Starting election..."):
-                # Find a follower to start election
                 for node in raft_nodes.values():
                     if node.state != NodeState.LEADER:
-                        # Simulate election start
                         import asyncio
                         asyncio.run(node._start_election())
                         break
@@ -248,11 +269,11 @@ with tab3:
                 import asyncio
                 result = asyncio.run(leader.client_request({"op": "set", "key": cmd_key, "value": cmd_value}))
                 if result:
-                    st.success(f"Command committed: {cmd_key} = {cmd_value}")
+                    st.success(f"✅ Command committed: {cmd_key} = {cmd_value}")
                 else:
-                    st.error("Command failed")
+                    st.error("❌ Command failed")
             else:
-                st.error("No leader available")
+                st.error("❌ No leader available")
     
     with st.expander("📜 State Machine Values"):
         sm_data = []
@@ -311,19 +332,19 @@ with tab4:
         - Total Requests: {status['total_requests']}
         """)
     
-    st.subheader("IP Management")
+    st.subheader("📋 IP Management")
     col1, col2 = st.columns(2)
     with col1:
         whitelist_ip = st.text_input("Add to Whitelist", "10.0.0.1", key="wl_ip")
         if st.button("➕ Add Whitelist", key="wl_btn"):
             fw.add_to_whitelist(whitelist_ip)
-            st.success(f"Added {whitelist_ip} to whitelist")
+            st.success(f"✅ Added {whitelist_ip} to whitelist")
     
     with col2:
         blacklist_ip = st.text_input("Add to Blacklist", "1.2.3.4", key="bl_ip")
         if st.button("⛔ Add Blacklist", key="bl_btn"):
             fw.add_to_blacklist(blacklist_ip)
-            st.success(f"Added {blacklist_ip} to blacklist")
+            st.success(f"✅ Added {blacklist_ip} to blacklist")
     
     with st.expander("📊 Firewall Stats"):
         stats_data = []
@@ -337,7 +358,7 @@ with tab4:
         st.dataframe(stats_data)
     
     with st.expander("⚙️ Current Configuration"):
-        st.write(f"Requests/sec: {fw.config.requests_per_second}")
-        st.write(f"Burst Size: {fw.config.burst_size}")
-        st.write(f"Block Threshold: {fw.config.block_threshold}")
-        st.write(f"Block Duration: {fw.config.block_duration}s")
+        st.write(f"**Requests per second:** {fw.config.requests_per_second}")
+        st.write(f"**Burst Size:** {fw.config.burst_size}")
+        st.write(f"**Block Threshold:** {fw.config.block_threshold}")
+        st.write(f"**Block Duration:** {fw.config.block_duration} seconds")
