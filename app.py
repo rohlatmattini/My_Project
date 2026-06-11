@@ -97,6 +97,10 @@ with tab1:
     with col2:
         region_focus = st.selectbox("Focus region", ["All", "ME", "EU", "NA", "AP", "AF", "SA_"], key="geo_region")
     
+    if st.button("🔄 Reset Manager", key="geo_reset"):
+        st.cache_resource.clear()
+        st.rerun()
+
     if st.button("🚀 Run GeoSharding Simulation", key="geo_btn"):
         with st.spinner("Routing records across regions..."):
             records = []
