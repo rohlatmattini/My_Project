@@ -14,9 +14,6 @@ st.markdown(
 st.markdown("---")
 
 
-# ============================================================
-# Helper: تشغيل async بأمان داخل Streamlit
-# ============================================================
 def run_async(coro):
     try:
         loop = asyncio.get_event_loop()
@@ -140,7 +137,6 @@ with tab1:
         if st.button("🔄 Reset Manager", key="geo_reset_btn"):
             if "geo_manager" in st.session_state:
                 del st.session_state.geo_manager
-            # امسح نتائج القديمة
             if "geo_results" in st.session_state:
                 del st.session_state.geo_results
             st.success("Manager reset!")
@@ -170,20 +166,17 @@ with tab1:
 
                 distribution = geo_mgr.route_many(records)
 
-                # احفظ النتائج في session_state
                 region_counts = {}
                 for shard_id, recs in distribution.items():
                     region = geo_mgr.shards[shard_id].region
                     region_counts[region] = region_counts.get(region, 0) + len(recs)
 
-                # خزّن النتائج
                 st.session_state.geo_results = {
                     "num_records": num_records,
                     "region_focus": region_focus,
                     "region_counts": region_counts,
                 }
 
-    # ← عرض النتائج من session_state (خارج if button)
     if "geo_results" in st.session_state:
         geo_mgr = get_geo_manager()
         res = st.session_state.geo_results
@@ -200,7 +193,7 @@ with tab1:
         })
         st.bar_chart(chart_data.set_index("Region"))
     # ============================================================
-    # إعدادات GeoSharding - Show Configuration
+    #  GeoSharding - Show Configuration
     # ============================================================
     with st.expander("⚙️ GeoSharding Configuration", expanded=False):
         st.markdown("### Current Settings")
@@ -250,7 +243,6 @@ with tab1:
                 })
             st.dataframe(shard_data, use_container_width=True)
 
-        # ← زر Split هون (خارج if button، دايماً ظاهر)
         hot_shards = [s for s in geo_mgr.shards.values() if s.hot_spot]
         if hot_shards:
             st.warning(f"🔥 {len(hot_shards)} Hot Spot(s) detected!")
@@ -262,7 +254,6 @@ with tab1:
                 for old, new in splits:
                     st.info(f"✂️ Split: **{old}** → **{old}** + **{new}**")
                 
-                # حدّث النتائج
                 region_counts_new = {}
                 for shard in geo_mgr.shards.values():
                     r = shard.region
@@ -426,7 +417,6 @@ with tab4:
             res = fw.process_request(test_ip, fw_path)
             res_str = res.name if hasattr(res, "name") else str(res)
 
-            # ترتيب صحيح: WHITELISTED أول
             if "WHITELIST" in res_str:
                 results["⭐ WHITELISTED"] += 1
             elif "RATE_LIMITED" in res_str:
@@ -447,7 +437,6 @@ with tab4:
         col3.metric("⛔ Blocked", results["⛔ BLOCKED"])
         col4.metric("⭐ Whitelisted", results["⭐ WHITELISTED"])
 
-        # IP Status
         status = fw.get_ip_status(test_ip)
         st.info(f"""
 **IP Status: `{test_ip}`**

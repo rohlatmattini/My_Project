@@ -91,7 +91,7 @@ class NginxFirewall:
 
         self.whitelist: set[str] = set()
         self.blacklist: set[str] = set()
-        self.dynamic_blocks: dict[str, float] = {}  # ip → unblock_time
+        self.dynamic_blocks: dict[str, float] = {}  
 
         self._token_buckets: dict[str, TokenBucket] = {}
         self._sliding_windows: dict[str, SlidingWindowLog] = {}

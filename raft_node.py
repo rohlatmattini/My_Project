@@ -201,7 +201,6 @@ class RaftNode:
 
         await self._broadcast_append_entries()
 
-    # ── Log Replication ──────────────────────
 
     async def client_request(self, command: Any) -> bool:
  
