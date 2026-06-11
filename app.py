@@ -121,6 +121,7 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 # ------------------- TAB 1: GeoSharding -------------------
+# ------------------- TAB 1: GeoSharding -------------------
 with tab1:
     st.header("🌍 Geographic Sharding")
     st.markdown("Multi-region database with consistent hashing and hot-spot detection")
@@ -132,7 +133,7 @@ with tab1:
         region_focus = st.selectbox(
             "Focus region",
             ["All", "ME", "EU", "NA", "AP", "AF", "SA_"],
-            key="geo_region",
+            key="geo_region"
         )
 
     col_reset, col_run = st.columns([1, 3])
@@ -140,6 +141,9 @@ with tab1:
         if st.button("🔄 Reset Manager", key="geo_reset_btn"):
             if "geo_manager" in st.session_state:
                 del st.session_state.geo_manager
+            # امسح نتائج القديمة
+            if "geo_results" in st.session_state:
+                del st.session_state.geo_results
             st.success("Manager reset!")
             st.rerun()
 
@@ -158,69 +162,88 @@ with tab1:
                     allowed_countries = list(COUNTRY_TO_REGION.keys())
 
                 for _ in range(num_records):
-                    records.append(
-                        GeoRecord(
-                            user_id=f"user_{random.randint(1, 99999)}",
-                            country=random.choice(allowed_countries),
-                            lat=0.0,
-                            lon=0.0,
-                            data={},
-                        )
-                    )
+                    records.append(GeoRecord(
+                        user_id=f"user_{random.randint(1, 99999)}",
+                        country=random.choice(allowed_countries),
+                        lat=0.0, lon=0.0,
+                        data={}
+                    ))
 
                 distribution = geo_mgr.route_many(records)
 
-                # حساب التوزيع
+                # احفظ النتائج في session_state
                 region_counts = {}
                 for shard_id, recs in distribution.items():
                     region = geo_mgr.shards[shard_id].region
                     region_counts[region] = region_counts.get(region, 0) + len(recs)
 
-                st.success(
-                    f"✅ Routed {num_records:,} records | Region: {region_focus}"
-                )
+                # خزّن النتائج
+                st.session_state.geo_results = {
+                    "num_records": num_records,
+                    "region_focus": region_focus,
+                    "region_counts": region_counts,
+                }
 
-                # Bar Chart
-                chart_data = pd.DataFrame(
-                    {
-                        "Region": list(region_counts.keys()),
-                        "Records": list(region_counts.values()),
-                    }
-                )
-                st.bar_chart(chart_data.set_index("Region"))
+    # ← عرض النتائج من session_state (خارج if button)
+    if "geo_results" in st.session_state:
+        geo_mgr = get_geo_manager()
+        res = st.session_state.geo_results
 
-                # Metrics
-                col1, col2, col3 = st.columns(3)
-                col1.metric("Total Shards", len(geo_mgr.shards))
-                col2.metric("Balance Score", f"{geo_mgr.balance_score():.2%}")
-                hot_count = sum(1 for s in geo_mgr.shards.values() if s.hot_spot)
-                col3.metric("Hot Spots", hot_count)
+        st.success(
+            f"✅ Routed {res['num_records']:,} records "
+            f"| Region: {res['region_focus']}"
+        )
 
-                # Shard Details
-                with st.expander("📋 Shard Details"):
-                    shard_data = []
-                    for shard in geo_mgr.shards.values():
-                        shard_data.append(
-                            {
-                                "Shard ID": shard.shard_id,
-                                "Region": shard.region,
-                                "Records": shard.record_count,
-                                "Load Factor": f"{shard.load_factor():.1%}",
-                                "Hot Spot": "🔥" if shard.hot_spot else "✅",
-                            }
-                        )
-                    st.dataframe(shard_data)
+        # Bar Chart
+        chart_data = pd.DataFrame({
+            "Region": list(res["region_counts"].keys()),
+            "Records": list(res["region_counts"].values())
+        })
+        st.bar_chart(chart_data.set_index("Region"))
 
-                # Hot Spot Actions
-                hot_shards = [s for s in geo_mgr.shards.values() if s.hot_spot]
-                if hot_shards:
-                    st.warning(f"🔥 {len(hot_shards)} Hot Spot(s) detected!")
-                    if st.button("✂️ Split Hot Shards", key="geo_split_btn"):
-                        splits = geo_mgr.handle_hot_spots()
-                        for old, new in splits:
-                            st.info(f"Split: {old} → {old} + {new}")
-                        st.rerun()
+        # Metrics
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Shards", len(geo_mgr.shards))
+        col2.metric("Balance Score", f"{geo_mgr.balance_score():.2%}")
+        hot_count = sum(1 for s in geo_mgr.shards.values() if s.hot_spot)
+        col3.metric("Hot Spots", hot_count)
 
+        # Shard Details
+        with st.expander("📋 Shard Details"):
+            shard_data = []
+            for shard in geo_mgr.shards.values():
+                shard_data.append({
+                    "Shard ID": shard.shard_id,
+                    "Region": shard.region,
+                    "Records": shard.record_count,
+                    "Load Factor": f"{shard.load_factor():.1%}",
+                    "Hot Spot": "🔥" if shard.hot_spot else "✅"
+                })
+            st.dataframe(shard_data, use_container_width=True)
+
+        # ← زر Split هون (خارج if button، دايماً ظاهر)
+        hot_shards = [s for s in geo_mgr.shards.values() if s.hot_spot]
+        if hot_shards:
+            st.warning(f"🔥 {len(hot_shards)} Hot Spot(s) detected!")
+            
+            if st.button("✂️ Split Hot Shards Now", key="geo_split_btn"):
+                with st.spinner("Splitting hot shards..."):
+                    splits = geo_mgr.handle_hot_spots()
+                
+                for old, new in splits:
+                    st.info(f"✂️ Split: **{old}** → **{old}** + **{new}**")
+                
+                # حدّث النتائج
+                region_counts_new = {}
+                for shard in geo_mgr.shards.values():
+                    r = shard.region
+                    region_counts_new[r] = (
+                        region_counts_new.get(r, 0) + shard.record_count
+                    )
+                st.session_state.geo_results["region_counts"] = region_counts_new
+                st.rerun()
+        else:
+            st.success("✅ No hot spots - System is balanced!")
 # ------------------- TAB 2: Ingress Controller -------------------
 with tab2:
     st.header("🚪 Ingress Controller / API Gateway")
