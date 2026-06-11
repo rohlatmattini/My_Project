@@ -199,7 +199,37 @@ with tab1:
             "Records": list(res["region_counts"].values())
         })
         st.bar_chart(chart_data.set_index("Region"))
-
+    # ============================================================
+    # إعدادات GeoSharding - Show Configuration
+    # ============================================================
+    with st.expander("⚙️ GeoSharding Configuration", expanded=False):
+        st.markdown("### Current Settings")
+        
+        col_cfg1, col_cfg2, col_cfg3 = st.columns(3)
+        
+        with col_cfg1:
+            st.metric("📊 Shard Capacity", "10,000 records")
+            st.metric("🔥 Hot Spot Threshold", "80% (8,000 records)")
+            st.metric("🎯 Balance Score Target", "≥ 70% (Good)")
+        
+        with col_cfg2:
+            st.markdown("**Shards per Region:**")
+            st.code("""
+            ME  (Middle East)    → 2 shards
+            EU  (Europe)         → 3 shards
+            NA  (North America)  → 3 shards
+            AP  (Asia Pacific)   → 3 shards
+            AF  (Africa)         → 1 shard
+            SA_ (South America)  → 2 shards
+            """)
+        
+        with col_cfg3:
+            st.markdown("**Consistent Hashing:**")
+            st.metric("Virtual Nodes", "100-150")
+            st.markdown("**Load Factor Formula:**")
+            st.latex(r"Load = \frac{RecordCount}{10000}")
+            st.markdown("**Hot Spot Condition:**")
+            st.latex(r"Load \geq 0.8")
         # Metrics
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Shards", len(geo_mgr.shards))
