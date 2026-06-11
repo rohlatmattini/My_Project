@@ -121,7 +121,6 @@ tab1, tab2, tab3, tab4 = st.tabs(
 )
 
 # ------------------- TAB 1: GeoSharding -------------------
-# ------------------- TAB 1: GeoSharding -------------------
 with tab1:
     st.header("🌍 Geographic Sharding")
     st.markdown("Multi-region database with consistent hashing and hot-spot detection")
@@ -308,112 +307,68 @@ with tab2:
 with tab3:
     st.header("👑 Raft Consensus Algorithm")
     st.markdown("Leader election and log replication simulation")
-
-    # Status Table
+    
+    # Show current status
     status_data = []
     leader_id = None
     for nid, node in raft_nodes.items():
         s = node.status()
         if s["state"] == "LEADER":
             leader_id = nid
-        status_data.append(
-            {
-                "Node": nid,
-                "State": s["state"],
-                "Term": s["term"],
-                "Leader": s["leader"] or "None",
-                "Log Length": s["log_length"],
-                "Commit Index": s["commit_index"],
-            }
-        )
-
-    st.dataframe(status_data, use_container_width=True)
-
+        status_data.append({
+            "Node": nid,
+            "State": s["state"],
+            "Term": s["term"],
+            "Leader": s["leader"] or "None",
+            "Log Length": s["log_length"],
+            "Commit Index": s["commit_index"]
+        })
+    
+    st.dataframe(status_data)
+    
     if leader_id:
-        st.success(
-            f"👑 Current Leader: **{leader_id}** | Term: {raft_nodes[leader_id].current_term}"
-        )
+        st.success(f"👑 Current Leader: **{leader_id}**")
     else:
-        st.warning("⚠️ No leader elected yet. Click 'Start Election'.")
-
+        st.warning("⚠️ No leader elected yet. Run election.")
+    
     col1, col2 = st.columns(2)
-
     with col1:
-        st.subheader("🗳️ Election")
         if st.button("🗳️ Start Election", key="raft_election_btn"):
-            with st.spinner("Running election..."):
-                elected = False
+            with st.spinner("Starting election..."):
                 for node in raft_nodes.values():
                     if node.state != NodeState.LEADER:
-                        result = run_async(node._start_election())
-                        if result is not None or True:
-                            elected = True
+                        import asyncio
+                        asyncio.run(node._start_election())
                         break
             st.rerun()
-
+    
     with col2:
-        st.subheader("📝 Client Command")
-        cmd_key = st.text_input("Key", "username", key="raft_key")
-        cmd_value = st.text_input("Value", "admin", key="raft_val")
-
+        cmd_key = st.text_input("Key", "test_key")
+        cmd_value = st.text_input("Value", "test_value")
         if st.button("📝 Send Command", key="raft_cmd_btn"):
             leader = None
             for node in raft_nodes.values():
                 if node.state == NodeState.LEADER:
                     leader = node
                     break
-
             if leader:
-                with st.spinner("Replicating command..."):
-                    result = run_async(
-                        leader.client_request(
-                            {"op": "set", "key": cmd_key, "value": cmd_value}
-                        )
-                    )
+                import asyncio
+                result = asyncio.run(leader.client_request({"op": "set", "key": cmd_key, "value": cmd_value}))
                 if result:
-                    st.success(f"✅ Committed: `{cmd_key}` = `{cmd_value}`")
+                    st.success(f"✅ Command committed: {cmd_key} = {cmd_value}")
                 else:
-                    st.error("❌ Command failed - check leader status")
+                    st.error("❌ Command failed")
             else:
-                st.error("❌ No leader! Run election first.")
-            st.rerun()
-
-    # State Machine
-    with st.expander("⚙️ State Machine (All Nodes)"):
+                st.error("❌ No leader available")
+    
+    with st.expander("📜 State Machine Values"):
         sm_data = []
         for nid, node in raft_nodes.items():
-            sm_data.append(
-                {
-                    "Node": nid,
-                    "State": node.state.value,
-                    "Term": node.current_term,
-                    "Log Length": len(node.log),
-                    "Commit Index": node.commit_index,
-                    "State Machine": str(node.state_machine),
-                }
-            )
-        st.dataframe(sm_data, use_container_width=True)
-
-    # Log Entries
-    with st.expander("📜 Log Entries (Leader)"):
-        if leader_id:
-            leader_node = raft_nodes[leader_id]
-            if leader_node.log:
-                log_data = []
-                for entry in leader_node.log:
-                    log_data.append(
-                        {
-                            "Index": entry.index,
-                            "Term": entry.term,
-                            "Command": str(entry.command),
-                            "Committed": "✅" if entry.committed else "⏳",
-                        }
-                    )
-                st.dataframe(log_data, use_container_width=True)
-            else:
-                st.info("No log entries yet.")
-        else:
-            st.info("No leader elected.")
+            sm_data.append({
+                "Node": nid,
+                "State Machine": str(node.state_machine)
+            })
+        st.dataframe(sm_data)
 
 # ------------------- TAB 4: Nginx Firewall -------------------
 with tab4:
